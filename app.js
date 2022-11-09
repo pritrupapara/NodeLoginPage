@@ -1,72 +1,49 @@
 const express = require('express');
-const { validate } = require("uuid");
-const { v4: uuidv4 } = require("uuid");
+const session = require('express-session');
 const path = require('path');
-const mysql = require('mysql');
-const session = require("express-session");
-const bodyParser = require('body-parser');
-const encoder = bodyParser.urlencoded();
-
+const pageRouter = require('./routes/pages');
 const app = express();
 
-const port = process.env.PORT || 9000;
+// for body parser. to collect data that sent from the client.
+app.use(express.urlencoded({ extended: false }));
 
-// Parse JSON bodies (as sent by API clients)
-app.use(express.json());
-app.use(bodyParser.json());
-// Parse URL-encoded bodies(as sent by HTML forms)
-app.use(bodyParser.urlencoded({ extended: true }));
+// Serve static files. CSS, Images, JS files ... etc
+app.use(express.static(path.join(__dirname, 'public')));
 
-app.set('view engine', 'ejs');
 
+// Template engine. PUG
+app.set('views', path.join(__dirname, 'views'));
+app.set('view engine', 'pug');
+
+// session
 app.use(session({
-    secret: uuidv4(), //  '1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed'
+    secret: 'youtube_video',
     resave: false,
-    saveUninitialized: true
+    saveUninitialized: false,
+    cookie: {
+        maxAge: 60 * 1000 * 30
+    }
 }));
 
-// MySQL
-const connection = mysql.createConnection({
-    host: 'localhost',
-    user: 'prit',
-    password: 'student7',
-    database: 'prit'
+// Routers
+app.use('/', pageRouter);
+
+// Errors => page not found 404
+app.use((req, res, next) => {
+    var err = new Error('Page not found');
+    err.status = 404;
+    next(err);
+})
+
+// Handling errors (send them to the client)
+app.use((err, req, res, next) => {
+    res.status(err.status || 500);
+    res.send(err.message);
 });
 
-//connect to the db
-connection.connect((err) => {
-    if (err) throw err;
-    else console.log('connect');
+// Setting up the server
+app.listen(3000, () => {
+    console.log('Server is running on port 3000...');
 });
 
-app.post('/', encoder, (req, res) => {
-
-    var username = req.body.username;
-    var email = req.body.email;
-    var password = req.body.password;
-
-    connection.query("SELECT * FROM customers WHERE username = ? AND email = ? AND password = ?", [username, email, password], (err, results, fields) => {
-        if (results.length > 0) {
-            res.redirect('/dashboard');
-            // res.send(req.body);
-        } else {
-            res.redirect('/');
-        }
-        res.end();
-    });
-
-});
-
-// main page route
-app.get('/', (req, res) => {
-    res.render('base', { title: "Register Page" });
-});
-
-// dashboard route
-app.get('/dashboard', (req, res) => {
-    res.render('dashboard', { title: "Dashboard Page" });
-});
-
-app.listen(port, () => {
-    console.log("Losting to the server on http://localhost:9000");
-});
+module.exports = app;
